@@ -1,0 +1,41 @@
+{
+  "name": "bot-telewa",
+  "version": "1.0.0",
+  "description": "Money tracking bot for Telegram and WhatsApp",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev"
+  },
+  "keywords": [
+    "telegram",
+    "whatsapp",
+    "bot",
+    "expense-tracker",
+    "money-management"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.35.0",
+    "@prisma/client": "^6.2.1",
+    "better-auth": "^1.4.12",
+    "dotenv": "^16.4.7",
+    "pg": "^8.17.0",
+    "telegraf": "^4.16.3",
+    "undici": "^7.18.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

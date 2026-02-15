@@ -1,0 +1,248 @@
+// Prisma Schema for Money Tracking Bot
+// Supports: Telegram, WhatsApp (future), Web (future), Mobile (future)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER ====================
+model User {
+  id               String    @id @default(cuid())
+  
+  // Platform identifiers (nullable for multi-platform support)
+  telegramId       BigInt?   @unique
+  telegramUsername String?
+  whatsappId       String?   @unique  // For future WhatsApp support
+  authUserId       String?   @unique  // Linked web auth user
+  
+  // User info
+  firstName        String?
+  lastName         String?
+  language         String    @default("id") // id = Indonesian
+  timezone         String    @default("Asia/Jakarta")
+  
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Relations
+  authUser         AuthUser? @relation(fields: [authUserId], references: [id], onDelete: SetNull)
+  accounts         Account[]
+  transactions     Transaction[]
+  categories       Category[]
+  receiptScans     ReceiptScanUsage[]
+  chatUsages       ChatUsage[]
+  
+  @@index([telegramId])
+  @@index([whatsappId])
+}
+
+// ==================== ACCOUNT ====================
+// Represents different money sources: Cash, Bank, E-Wallet
+model Account {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name      String      // "Cash", "BCA", "GoPay", "OVO", etc.
+  type      AccountType @default(CASH)
+  balance   Decimal     @default(0) @db.Decimal(15, 2)
+  currency  String      @default("IDR")
+  icon      String?     // Emoji or icon code
+  isDefault Boolean     @default(false)
+  isActive  Boolean     @default(true)
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  // Relations
+  transactions Transaction[]
+  
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+enum AccountType {
+  CASH
+  BANK
+  EWALLET
+  CREDIT_CARD
+  OTHER
+}
+
+// ==================== CATEGORY ====================
+model Category {
+  id        String          @id @default(cuid())
+  userId    String?         // null = system default category
+  user      User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name      String          // English name
+  nameId    String?         // Indonesian name
+  icon      String?         // Emoji
+  type      TransactionType
+  color     String?         // Hex color for UI
+  isSystem  Boolean         @default(false)
+  isActive  Boolean         @default(true)
+  
+  createdAt DateTime        @default(now())
+  
+  // Relations
+  transactions Transaction[]
+  
+  @@unique([userId, name, type])
+  @@index([type])
+}
+
+// ==================== TRANSACTION ====================
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  type        TransactionType
+  amount      Decimal         @db.Decimal(15, 2)
+  description String?         // AI-generated description
+  rawInput    String?         // Original user input: "beli ayam 10ribu cash"
+  note        String?         // Additional notes
+  
+  // For transfers between accounts
+  toAccountId String?
+  
+  date        DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([accountId])
+  @@index([categoryId])
+}
+
+// ==================== RECEIPT USAGE ====================
+model ReceiptScanUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey    String   // YYYY-MM-DD (Asia/Jakarta)
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+}
+
+// ==================== CHAT USAGE ====================
+model ChatUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey    String   // YYYY-MM-DD (Asia/Jakarta)
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dayKey])
+  @@index([userId])
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+// ==================== AUTH (Better Auth) ====================
+// Mapped to Better Auth tables created by backend auth service.
+model AuthUser {
+  id            String        @id
+  name          String
+  email         String        @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  accounts      AuthAccount[]
+  sessions      AuthSession[]
+  linkedUsers   User[]
+  linkTokens    LinkToken[]
+
+  @@map("auth_user")
+}
+
+model AuthSession {
+  id        String    @id
+  expiresAt DateTime
+  token     String    @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user      AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_session")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_account")
+}
+
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime
+  updatedAt  DateTime
+
+  @@index([identifier])
+  @@map("auth_verification")
+}
+
+model LinkToken {
+  id              String   @id @default(cuid())
+  authUserId      String
+  token           String   @unique
+  platform        String
+  usedAt          DateTime?
+  usedTelegramId  BigInt?
+  createdAt       DateTime @default(now())
+
+  authUser        AuthUser @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+
+  @@index([authUserId])
+  @@index([token])
+  @@unique([authUserId, platform])
+  @@map("link_token")
+}
