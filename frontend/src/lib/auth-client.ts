@@ -1,7 +1,10 @@
 import { createAuthClient } from "better-auth/client";
 
+const authBaseURL =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/api/auth`
+    : process.env.NEXT_PUBLIC_AUTH_BASE_URL || "http://localhost:3000/api/auth";
+
 export const authClient = createAuthClient({
-  // Use same-origin auth path so session cookie is stored on frontend domain.
-  // The actual upstream backend is handled by Next.js rewrite in next.config.ts.
-  baseURL: "/api/auth",
+  baseURL: authBaseURL,
 });
