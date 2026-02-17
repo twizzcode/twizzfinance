@@ -341,39 +341,85 @@ export async function getOrCreatePrimaryAccount(userId: string) {
 
 export async function linkAuthUserToTelegram(authUserId: string, telegramUser: { id: number; first_name?: string; last_name?: string; username?: string }) {
   const telegramId = BigInt(telegramUser.id);
+  try {
+    const [existingByAuth, existingByTelegram] = await Promise.all([
+      prisma.user.findUnique({ where: { authUserId } }),
+      prisma.user.findUnique({ where: { telegramId } }),
+    ]);
 
-  const existingByAuth = await prisma.user.findFirst({
-    where: { authUserId },
-  });
+    if (existingByAuth && existingByAuth.telegramId && existingByAuth.telegramId !== telegramId) {
+      return { ok: false, reason: "AUTH_ALREADY_LINKED" } as const;
+    }
 
-  if (existingByAuth && existingByAuth.telegramId && existingByAuth.telegramId !== telegramId) {
-    return { ok: false, reason: "AUTH_ALREADY_LINKED" } as const;
-  }
+    if (existingByTelegram && existingByTelegram.authUserId && existingByTelegram.authUserId !== authUserId) {
+      return { ok: false, reason: "TELEGRAM_ALREADY_LINKED" } as const;
+    }
 
-  const user = await findOrCreateUser({
-    telegramId,
-    firstName: telegramUser.first_name,
-    lastName: telegramUser.last_name,
-    telegramUsername: telegramUser.username,
-  });
+    // Common case: web user row already exists (authUserId), and Telegram row was
+    // auto-created earlier by bot start flow. Merge both into the auth-owned row.
+    if (existingByAuth) {
+      if (existingByTelegram && existingByTelegram.id !== existingByAuth.id) {
+        await prisma.user.delete({ where: { id: existingByTelegram.id } });
+      }
 
-  if (!user) {
-    return { ok: false, reason: "USER_CREATE_FAILED" } as const;
-  }
+      const updated = await prisma.user.update({
+        where: { id: existingByAuth.id },
+        data: {
+          telegramId,
+          firstName: telegramUser.first_name ?? existingByAuth.firstName,
+          lastName: telegramUser.last_name ?? existingByAuth.lastName,
+          telegramUsername: telegramUser.username ?? existingByAuth.telegramUsername,
+        },
+      });
 
-  if (user.authUserId && user.authUserId !== authUserId) {
-    return { ok: false, reason: "TELEGRAM_ALREADY_LINKED" } as const;
-  }
+      await Promise.all([ensureDefaultAccounts(updated.id), ensureDefaultCategories(updated.id)]);
+      return { ok: true, user: updated } as const;
+    }
 
-  if (!user.authUserId) {
+    if (existingByTelegram) {
+      const updated = await prisma.user.update({
+        where: { id: existingByTelegram.id },
+        data: {
+          authUserId,
+          firstName: telegramUser.first_name ?? existingByTelegram.firstName,
+          lastName: telegramUser.last_name ?? existingByTelegram.lastName,
+          telegramUsername: telegramUser.username ?? existingByTelegram.telegramUsername,
+        },
+      });
+
+      await Promise.all([ensureDefaultAccounts(updated.id), ensureDefaultCategories(updated.id)]);
+      return { ok: true, user: updated } as const;
+    }
+
+    const user = await findOrCreateUser({
+      telegramId,
+      firstName: telegramUser.first_name,
+      lastName: telegramUser.last_name,
+      telegramUsername: telegramUser.username,
+    });
+
+    if (!user) {
+      return { ok: false, reason: "USER_CREATE_FAILED" } as const;
+    }
+
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: { authUserId },
     });
     return { ok: true, user: updated } as const;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
+      if (target.includes("authUserId")) {
+        return { ok: false, reason: "AUTH_ALREADY_LINKED" } as const;
+      }
+      if (target.includes("telegramId")) {
+        return { ok: false, reason: "TELEGRAM_ALREADY_LINKED" } as const;
+      }
+    }
+    console.error("linkAuthUserToTelegram error:", error);
+    return { ok: false, reason: "USER_CREATE_FAILED" } as const;
   }
-
-  return { ok: true, user } as const;
 }
 
 export async function unlinkTelegramAuth(telegramId: bigint) {
