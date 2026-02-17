@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
         source: "/api/auth/:path*",
         destination: `${authTarget}/api/auth/:path*`,
       },
+      {
+        source: "/api/link/telegram",
+        destination: `${authTarget}/link/telegram`,
+      },
     ];
   },
 };

@@ -26,9 +26,7 @@ export function ConnectTelegramCard() {
     setError(null);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:4000";
-      const response = await fetch(`${apiBase}/link/telegram`, {
+      const response = await fetch("/api/link/telegram", {
         method: "POST",
         credentials: "include",
       });
