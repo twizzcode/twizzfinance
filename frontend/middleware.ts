@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/dashboard")) {
     const hasSession = request.cookies.has(sessionCookieName);
     if (!hasSession) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
     }

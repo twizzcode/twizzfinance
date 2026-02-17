@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(true);
+  const searchParams = useSearchParams();
 
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const callbackURL = `${window.location.origin}/dashboard`;
+      const redirectParam = searchParams.get("redirect");
+      const safeRedirectPath =
+        redirectParam && redirectParam.startsWith("/") ? redirectParam : "/dashboard";
+      const callbackURL = `${window.location.origin}${safeRedirectPath}`;
       await authClient.signIn.social({
         provider: "google",
         callbackURL,
