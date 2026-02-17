@@ -6,9 +6,9 @@ Dashboard web berbasis Next.js + Tailwind + shadcn/ui. Dirancang sebagai fronten
 
 1. Copy `.env.example` ke `.env.local` dan isi env:
    - `NEXT_PUBLIC_API_BASE_URL` untuk koneksi ke backend
-   - `NEXT_PUBLIC_AUTH_BASE_URL` untuk auth backend
+   - `AUTH_BACKEND_ORIGIN` untuk upstream auth backend (dipakai rewrite `/api/auth`)
 2. Google OAuth redirect URL (di Google Console):
-   - `http://localhost:4000/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google`
 
 ## Connect Telegram
 

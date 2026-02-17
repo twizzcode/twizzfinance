@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
@@ -8,6 +8,21 @@ import { authClient } from "@/lib/auth-client";
 export default function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(true);
+
+  useEffect(() => {
+    const redirectParam = new URLSearchParams(window.location.search).get("redirect");
+    const safeRedirectPath =
+      redirectParam && redirectParam.startsWith("/") ? redirectParam : "/dashboard";
+    const hasSessionCookie = [
+      "better-auth.session_token=",
+      "__Secure-better-auth.session_token=",
+      "__Host-better-auth.session_token=",
+    ].some((name) => document.cookie.includes(name));
+
+    if (hasSessionCookie) {
+      window.location.replace(safeRedirectPath);
+    }
+  }, []);
 
   const handleGoogle = async () => {
     setLoading(true);
