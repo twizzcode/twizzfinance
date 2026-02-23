@@ -1,10 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { toNodeHandler } from "better-auth/node";
+import { z } from "zod";
 import { env } from "../config/env.js";
 import { auth } from "../auth/index.js";
 import { createTelegramLinkToken, getTelegramLinkToken } from "../services/link.js";
-import { findOrCreateUserByAuth } from "../services/user.js";
+import { findOrCreateUserByAuth, getOrCreatePrimaryAccount } from "../services/user.js";
+import { prisma } from "../lib/prisma.js";
 import {
+  createTransaction,
   getExpenseCategorySummaryForPeriod,
   getMonthSummaryForPeriod,
   getRecentTransactionsForMonth,
@@ -17,6 +20,14 @@ interface JsonResponse {
   data?: unknown;
   error?: string;
 }
+
+const createTransactionBodySchema = z.object({
+  type: z.enum(["EXPENSE", "INCOME"]),
+  amount: z.coerce.number().positive().max(1_000_000_000_000),
+  description: z.string().trim().min(1).max(180).optional(),
+  category: z.string().trim().min(1).max(80).optional(),
+  date: z.string().trim().optional(),
+});
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -120,6 +131,24 @@ function sendJsonWithCors(
   res.end(JSON.stringify(payload));
 }
 
+async function readJsonBody(req: IncomingMessage) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  const bodyText = Buffer.concat(chunks).toString("utf8");
+  if (!bodyText) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(bodyText) as Record<string, unknown>;
+  } catch {
+    throw new Error("INVALID_JSON");
+  }
+}
+
 export function startApiServer() {
   const port = env.API_PORT ?? 4000;
   const authHandler = toNodeHandler(auth);
@@ -185,6 +214,112 @@ export function startApiServer() {
       } catch (error) {
         console.error("API /link/telegram error:", error);
         sendJsonWithCors(res, 500, { status: "error", error: "Server error" }, env.FRONTEND_ORIGIN);
+      }
+      return;
+    }
+
+    if (url.pathname === "/transactions") {
+      setCors(res, env.FRONTEND_ORIGIN);
+      if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      if (req.method !== "POST") {
+        sendJsonWithCors(res, 405, { status: "error", error: "Method not allowed" }, env.FRONTEND_ORIGIN);
+        return;
+      }
+
+      try {
+        const sessionData = await auth.api.getSession({ headers: req.headers });
+        const authUserId = sessionData?.user?.id;
+        const authName = sessionData?.user?.name ?? null;
+
+        if (!authUserId) {
+          sendJsonWithCors(res, 401, { status: "error", error: "Unauthorized" }, env.FRONTEND_ORIGIN);
+          return;
+        }
+
+        const rawBody = await readJsonBody(req);
+        const parsed = createTransactionBodySchema.safeParse(rawBody);
+
+        if (!parsed.success) {
+          sendJsonWithCors(res, 400, { status: "error", error: "Invalid payload" }, env.FRONTEND_ORIGIN);
+          return;
+        }
+
+        let txDate: Date | undefined;
+        if (parsed.data.date) {
+          const candidate = new Date(parsed.data.date);
+          if (Number.isNaN(candidate.getTime())) {
+            sendJsonWithCors(res, 400, { status: "error", error: "Invalid date format" }, env.FRONTEND_ORIGIN);
+            return;
+          }
+          txDate = candidate;
+        }
+
+        const user = await findOrCreateUserByAuth(authUserId, authName);
+        if (!user) {
+          sendJsonWithCors(res, 404, { status: "error", error: "User not found" }, env.FRONTEND_ORIGIN);
+          return;
+        }
+
+        const account = await getOrCreatePrimaryAccount(user.id);
+        const category = await prisma.category.findFirst({
+          where: {
+            userId: user.id,
+            type: parsed.data.type,
+            OR: parsed.data.category
+              ? [
+                  { name: { equals: parsed.data.category, mode: "insensitive" } },
+                  { nameId: { equals: parsed.data.category, mode: "insensitive" } },
+                ]
+              : undefined,
+          },
+          orderBy: { createdAt: "asc" },
+        }) ?? await prisma.category.findFirst({
+          where: {
+            userId: user.id,
+            type: parsed.data.type,
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        const created = await createTransaction({
+          userId: user.id,
+          accountId: account.id,
+          categoryId: category?.id,
+          type: parsed.data.type,
+          amount: parsed.data.amount,
+          description: parsed.data.description,
+          rawInput: "WEB_DASHBOARD",
+          date: txDate,
+        });
+
+        sendJsonWithCors(
+          res,
+          201,
+          {
+            status: "ok",
+            data: {
+              id: created.transaction.id,
+              type: created.transaction.type,
+              amount: Number(created.transaction.amount),
+              description: created.transaction.description,
+              category: created.transaction.category?.nameId || created.transaction.category?.name || "Lainnya",
+              date: created.transaction.date.toISOString(),
+            },
+          },
+          env.FRONTEND_ORIGIN
+        );
+      } catch (error) {
+        console.error("API /transactions error:", error);
+        const message =
+          error instanceof Error && error.message === "INVALID_JSON"
+            ? "Invalid JSON"
+            : "Server error";
+        sendJsonWithCors(res, message === "Invalid JSON" ? 400 : 500, { status: "error", error: message }, env.FRONTEND_ORIGIN);
       }
       return;
     }

@@ -14,7 +14,6 @@ type LinkResponse = {
 };
 
 export function ConnectTelegramCard() {
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
@@ -22,7 +21,6 @@ export function ConnectTelegramCard() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleConnect = useCallback(async () => {
-    setLoading(true);
     setError(null);
 
     try {
@@ -38,10 +36,8 @@ export function ConnectTelegramCard() {
 
       setToken(payload.data.token);
       setDeepLink(payload.data.deepLink);
-    } catch (err) {
+    } catch {
       setError("Gagal membuat link Telegram. Pastikan sudah login.");
-    } finally {
-      setLoading(false);
     }
   }, []);
 

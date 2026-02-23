@@ -12,13 +12,14 @@ export interface CreateTransactionParams {
   description?: string;
   rawInput?: string;
   toAccountId?: string;
+  date?: Date;
 }
 
 /**
  * Create a new transaction and update account balance
  */
 export async function createTransaction(params: CreateTransactionParams) {
-  const { userId, accountId, categoryId, type, amount, description, rawInput, toAccountId } = params;
+  const { userId, accountId, categoryId, type, amount, description, rawInput, toAccountId, date } = params;
 
   return await prisma.$transaction(async (tx) => {
     // Create transaction
@@ -32,6 +33,7 @@ export async function createTransaction(params: CreateTransactionParams) {
         description,
         rawInput,
         toAccountId,
+        ...(date ? { date } : {}),
       },
       include: {
         account: true,

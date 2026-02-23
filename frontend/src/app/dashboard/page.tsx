@@ -3,6 +3,7 @@ import { WeeklyCashflowChart } from "@/components/dashboard/weekly-cashflow-char
 import { cookies } from "next/headers";
 import { WeekPeriodCard } from "@/components/dashboard/week-period-card";
 import { BottomNav } from "@/components/dashboard/bottom-nav";
+import { QuickAddTransactionForm } from "@/components/dashboard/quick-add-transaction-form";
 import { ArrowDownLeft, ArrowUpRight, BadgeCheck, HandCoins, Wallet2 } from "lucide-react";
 
 type DashboardData = {
@@ -294,6 +295,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             )}
           </div>
         </section>
+        <QuickAddTransactionForm />
       </main>
       <BottomNav />
     </div>

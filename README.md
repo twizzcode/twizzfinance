@@ -5,6 +5,7 @@ Backend dan frontend dipisah untuk belajar sekaligus siap scale ke mobile app.
 ## Struktur
 
 - `backend/` Telegram bot + AI parsing + Prisma
+- `backend-go/` API backend versi Go (dashboard + link + auth proxy opsional)
 - `frontend/` Next.js + Tailwind + shadcn/ui
 
 ## Backend

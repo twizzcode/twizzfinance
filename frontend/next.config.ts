@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
         source: "/api/link/telegram",
         destination: `${authTarget}/link/telegram`,
       },
+      {
+        source: "/api/transactions",
+        destination: `${authTarget}/transactions`,
+      },
     ];
   },
 };
