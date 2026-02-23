@@ -34,6 +34,7 @@ export const DEFAULT_CATEGORIES = [
   { name: "Social", nameId: "Sosial", icon: "🤝", type: "EXPENSE" as const },
   { name: "Lost Money", nameId: "Uang Hilang", icon: "🕳️", type: "EXPENSE" as const },
   { name: "Donation", nameId: "Donasi", icon: "🙏", type: "EXPENSE" as const },
+  { name: "Infaq", nameId: "Infaq", icon: "🕌", type: "EXPENSE" as const },
   { name: "Family", nameId: "Keluarga", icon: "👨‍👩‍👧‍👦", type: "EXPENSE" as const },
   { name: "Children", nameId: "Anak", icon: "🧒", type: "EXPENSE" as const },
   { name: "Work Needs", nameId: "Keperluan Kerja", icon: "💼", type: "EXPENSE" as const },
